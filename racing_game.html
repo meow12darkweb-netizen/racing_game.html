@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Our Racing Game</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101522;color:white;font-family:Arial;text-align:center}
+h2{margin:12px}
+#game{width:min(94vw,360px);height:60vh;min-height:350px;max-height:520px;margin:auto;position:relative;overflow:hidden;background:#333;border:4px solid #ddd;border-radius:12px}
+.roadline{position:absolute;left:49%;width:5px;height:55px;background:white;animation:road .7s linear infinite}
+@keyframes road{from{top:-60px}to{top:100%}}
+#car{position:absolute;bottom:20px;left:44%;width:42px;height:70px;background:#ff477e;border:3px solid white;border-radius:12px 12px 7px 7px;box-shadow:inset 0 15px #ff9ab8}
+.enemy{position:absolute;width:40px;height:65px;background:#45c9ff;border:3px solid white;border-radius:10px;top:-80px}
+#hud{display:flex;justify-content:center;gap:25px;margin:12px;font-size:18px}
+.controls{display:flex;justify-content:center;gap:12px;margin:12px}
+button{padding:15px 22px;border:0;border-radius:12px;font-size:18px;font-weight:bold;background:#ff477e;color:white;touch-action:manipulation}
+#go{background:#35b879}
+p{color:#cbd2e8}
+</style>
+</head>
+<body>
+<h2>🏎️ You & Me Racing 💗</h2>
+<div id="hud"><span>Score: <b id="score">0</b></span><span>Speed: <b id="speed">1</b></span></div>
+<div id="game">
+<div id="car"></div>
+</div>
+<div class="controls">
+<button id="left">⬅️ Left</button>
+<button id="go">ACCELERATE 🚀</button>
+<button id="right">Right ➡️</button>
+</div>
+<p>Dodge the blue cars and get the highest score!</p>
+<button onclick="location.reload()">🔄 Restart</button>
+<script>
+const game=document.getElementById('game');
+const car=document.getElementById('car');
+const scoreEl=document.getElementById('score');
+const speedEl=document.getElementById('speed');
+let x=0,score=0,speed=3,alive=true,held=false;
+function move(d){
+ if(!alive)return;
+ x=Math.max(-130,Math.min(130,x+d*22));
+ car.style.transform=`translateX(${x}px)`;
+}
+document.getElementById('left').onpointerdown=()=>move(-1);
+document.getElementById('right').onpointerdown=()=>move(1);
+document.getElementById('go').onpointerdown=()=>held=true;
+['pointerup','pointercancel'].forEach(e=>document.addEventListener(e,()=>held=false));
+document.addEventListener('keydown',e=>{
+ if(e.key==='ArrowLeft'||e.key==='a')move(-1);
+ if(e.key==='ArrowRight'||e.key==='d')move(1);
+ if(e.key==='ArrowUp')held=true;
+});
+document.addEventListener('keyup',()=>held=false);
+for(let i=0;i<4;i++){
+ const line=document.createElement('div');
+ line.className='roadline';
+ line.style.top=(i*145-60)+'px';
+ line.style.animationDelay=(-i*.17)+'s';
+ game.appendChild(line);
+}
+function spawn(){
+ if(!alive)return;
+ const e=document.createElement('div');
+ e.className='enemy';
+ e.style.left=(20+Math.random()*(game.clientWidth-65))+'px';
+ game.appendChild(e);
+ let y=-80;
+ function tick(){
+  if(!alive){e.remove();return}
+  y+=speed+(held?2:0);
+  e.style.top=y+'px';
+  const a=e.getBoundingClientRect(),b=car.getBoundingClientRect();
+  if(a.bottom>b.top+8&&a.top<b.bottom-8&&a.right>b.left+5&&a.left<b.right-5){
+   alive=false;
+   alert('Race over! Your score: '+score);
+   return;
+  }
+  if(y>game.clientHeight){e.remove();score+=10;scoreEl.textContent=score;return}
+  requestAnimationFrame(tick);
+ }
+ requestAnimationFrame(tick);
+ setTimeout(spawn,1100);
+ tick();
+}
+spawn();
+setInterval(()=>{if(alive){speed=Math.min(10,speed+.15);speedEl.textContent=Math.floor(speed);}},3000);
+</script>
+</body>
+</html>
