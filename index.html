@@ -4,90 +4,326 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Our Racing Game</title>
+<title>You & Me Racing 💗</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101522;color:white;font-family:Arial;text-align:center}
-h2{margin:12px}
-#game{width:min(94vw,360px);height:60vh;min-height:350px;max-height:520px;margin:auto;position:relative;overflow:hidden;background:#333;border:4px solid #ddd;border-radius:12px}
-.roadline{position:absolute;left:49%;width:5px;height:55px;background:white;animation:road .7s linear infinite}
+body{margin:0;background:#101522;color:#fff;font-family:Arial,sans-serif;text-align:center;padding:14px}
+h2{color:#ff80aa}
+.panel{max-width:440px;margin:12px auto;padding:16px;border:1px solid #414d68;border-radius:18px;background:#171f31}
+input,button{font-size:16px;padding:12px;border-radius:10px}
+input{width:100%;background:#0e1525;color:white;border:1px solid #63708b;margin:8px 0}
+button{background:transparent;color:#fff;border:2px solid #ff477e;cursor:pointer;transition:.15s}
+button:active{transform:scale(.94)}
+.primary{background:#ff477e}
+#status{color:#9deac5;min-height:24px}
+#game{width:min(94vw,360px);height:55vh;min-height:340px;max-height:500px;margin:12px auto;position:relative;overflow:hidden;background:#30343f;border:3px solid #d8deee;border-radius:12px}
+.roadline{position:absolute;left:49%;width:5px;height:55px;background:#fff;animation:road .7s linear infinite}
 @keyframes road{from{top:-60px}to{top:100%}}
-#car{position:absolute;bottom:20px;left:44%;width:42px;height:70px;background:#ff477e;border:3px solid white;border-radius:12px 12px 7px 7px;box-shadow:inset 0 15px #ff9ab8}
-.enemy{position:absolute;width:40px;height:65px;background:#45c9ff;border:3px solid white;border-radius:10px;top:-80px}
-#hud{display:flex;justify-content:center;gap:25px;margin:12px;font-size:18px}
-.controls{display:flex;justify-content:center;gap:12px;margin:12px}
-button{padding:15px 22px;border:0;border-radius:12px;font-size:18px;font-weight:bold;background:#ff477e;color:white;touch-action:manipulation}
-#go{background:#35b879}
-p{color:#cbd2e8}
+.car{position:absolute;bottom:20px;width:40px;height:66px;border:3px solid white;border-radius:11px 11px 7px 7px;z-index:3}
+#car{background:#ff477e;box-shadow:inset 0 14px #ff9ab8}
+#opponent{background:#35c9ff;box-shadow:inset 0 14px #9be8ff;display:none;opacity:.95}
+.enemy{position:absolute;width:38px;height:62px;background:#e5c94b;border:3px solid white;border-radius:10px;top:-80px}
+#hud{display:flex;justify-content:center;gap:24px;font-size:18px;margin:12px}
+.controls{display:flex;justify-content:center;gap:8px;margin:12px auto;max-width:420px}
+.controls button{flex:1;padding:15px 5px;touch-action:manipulation}
+#go{border-color:#35b879}
+.small{font-size:13px;color:#b9c5df}
+.hidden{display:none!important}
 </style>
 </head>
 <body>
 <h2>🏎️ You & Me Racing 💗</h2>
-<div id="hud"><span>Score: <b id="score">0</b></span><span>Speed: <b id="speed">1</b></span></div>
-<div id="game">
-<div id="car"></div>
+
+<div class="panel" id="lobby">
+  <p>Create a room or join with your partner's room code.</p>
+  <button class="primary" id="create">Create Room</button>
+  <input id="roomInput" placeholder="Enter room code" maxlength="6" autocomplete="off">
+  <button id="join">Join Room</button>
+  <p id="roomLabel"></p>
+  <p id="status">Connecting to Firebase…</p>
+  <p class="small">Share the room code with your partner.</p>
 </div>
-<div class="controls">
-<button id="left">⬅️ Left</button>
-<button id="go">ACCELERATE 🚀</button>
-<button id="right">Right ➡️</button>
+
+<div id="race" class="hidden">
+  <div class="panel">
+    Room: <b id="roomName"></b>
+    <button id="copy">Copy Code</button>
+    <p id="players">Waiting for the other racer…</p>
+  </div>
+  <div id="hud">
+    <span>Score: <b id="score">0</b></span>
+    <span>Speed: <b id="speed">1</b></span>
+  </div>
+  <div id="game">
+    <div id="car" class="car"></div>
+    <div id="opponent" class="car"></div>
+  </div>
+  <div class="controls">
+    <button id="left">⬅️ Left</button>
+    <button id="go">ACCELERATE 🚀</button>
+    <button id="right">Right ➡️</button>
+  </div>
+  <button id="restart">🔄 Restart Race</button>
+  <button id="leave">Leave Room</button>
+  <p class="small">Pink = You · Blue = Partner</p>
 </div>
-<p>Dodge the blue cars and get the highest score!</p>
-<button onclick="location.reload()">🔄 Restart</button>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-const game=document.getElementById('game');
-const car=document.getElementById('car');
-const scoreEl=document.getElementById('score');
-const speedEl=document.getElementById('speed');
-let x=0,score=0,speed=3,alive=true,held=false;
-function move(d){
- if(!alive)return;
- x=Math.max(-130,Math.min(130,x+d*22));
- car.style.transform=`translateX(${x}px)`;
+const firebaseConfig = {
+  databaseURL: "https://you-and-me-racing-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+
+const $ = id => document.getElementById(id);
+const lobby = $("lobby"), race = $("race");
+let db, roomRef, playersRef, myRef, roomCode = "";
+let myId = "";
+let connected = false, alive = false, held = false;
+let x = 0, score = 0, speed = 3;
+let enemies = [], animationId = 0, spawnTimer = 0, speedTimer = 0;
+let lastSent = 0;
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+  db.ref(".info/connected").on("value", s => {
+    connected = !!s.val();
+    if (!connected) $("status").textContent = "Reconnecting…";
+    else if (!roomCode) $("status").textContent = "Firebase connected 💚";
+  });
+} catch (e) {
+  $("status").textContent = "Firebase error: " + e.message;
 }
-document.getElementById('left').onpointerdown=()=>move(-1);
-document.getElementById('right').onpointerdown=()=>move(1);
-document.getElementById('go').onpointerdown=()=>held=true;
-['pointerup','pointercancel'].forEach(e=>document.addEventListener(e,()=>held=false));
-document.addEventListener('keydown',e=>{
- if(e.key==='ArrowLeft'||e.key==='a')move(-1);
- if(e.key==='ArrowRight'||e.key==='d')move(1);
- if(e.key==='ArrowUp')held=true;
-});
-document.addEventListener('keyup',()=>held=false);
-for(let i=0;i<4;i++){
- const line=document.createElement('div');
- line.className='roadline';
- line.style.top=(i*145-60)+'px';
- line.style.animationDelay=(-i*.17)+'s';
- game.appendChild(line);
-}
-function spawn(){
- if(!alive)return;
- const e=document.createElement('div');
- e.className='enemy';
- e.style.left=(20+Math.random()*(game.clientWidth-65))+'px';
- game.appendChild(e);
- let y=-80;
- function tick(){
-  if(!alive){e.remove();return}
-  y+=speed+(held?2:0);
-  e.style.top=y+'px';
-  const a=e.getBoundingClientRect(),b=car.getBoundingClientRect();
-  if(a.bottom>b.top+8&&a.top<b.bottom-8&&a.right>b.left+5&&a.left<b.right-5){
-   alive=false;
-   alert('Race over! Your score: '+score);
-   return;
+
+function getPlayerId() {
+  let id = sessionStorage.getItem("racingPlayerId");
+  if (!id) {
+    id = "p_" + Math.random().toString(36).slice(2, 12);
+    sessionStorage.setItem("racingPlayerId", id);
   }
-  if(y>game.clientHeight){e.remove();score+=10;scoreEl.textContent=score;return}
-  requestAnimationFrame(tick);
- }
- requestAnimationFrame(tick);
- setTimeout(spawn,1100);
- tick();
+  return id;
 }
-spawn();
-setInterval(()=>{if(alive){speed=Math.min(10,speed+.15);speedEl.textContent=Math.floor(speed);}},3000);
+
+function makeCode() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+async function enterRoom(code, createNew) {
+  if (!db) return alert("Firebase initialize nahi hua. URL check karo.");
+  if (!connected) return alert("Firebase connect nahi hai. Rules aur internet check karo.");
+
+  code = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{6}$/.test(code))
+    return alert("Room code 6 characters ka hona chahiye.");
+
+  myId = getPlayerId();
+  roomCode = code;
+  roomRef = db.ref("rooms/" + code);
+  playersRef = roomRef.child("players");
+  myRef = playersRef.child(myId);
+
+  try {
+    if (createNew) {
+      const snap = await roomRef.get();
+      if (snap.exists()) {
+        roomCode = "";
+        return alert("Room already exists. Dobara Create Room dabao.");
+      }
+      await roomRef.child("createdAt").set(Date.now());
+    } else {
+      const snap = await roomRef.get();
+      if (!snap.exists()) {
+        roomCode = "";
+        return alert("Room nahi mila. Pehle partner ko room create karna hoga.");
+      }
+    }
+
+    const current = await playersRef.get();
+    const others = [];
+    current.forEach(child => {
+      if (child.key !== myId) others.push(child.key);
+    });
+    if (others.length >= 2) {
+      roomCode = "";
+      return alert("Room full hai. Maximum 2 players.");
+    }
+
+    await myRef.set({
+      x: 0, score: 0, alive: true,
+      name: "Racer", updatedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    myRef.onDisconnect().remove();
+
+    lobby.classList.add("hidden");
+    race.classList.remove("hidden");
+    $("roomName").textContent = code;
+    $("players").textContent = "Room connected 💚";
+    startRace();
+  } catch (e) {
+    roomCode = "";
+    $("status").textContent = "Database error: " + e.message;
+    alert("Firebase error: " + e.message +
+      "\nDatabase Rules aur URL check karo.");
+  }
+}
+
+$("create").onclick = () => enterRoom(makeCode(), true);
+$("join").onclick = () => enterRoom($("roomInput").value.trim(), false);
+$("copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(roomCode);
+    $("copy").textContent = "Copied ✓";
+  } catch {
+    prompt("Room code copy karo:", roomCode);
+  }
+};
+
+function move(d) {
+  if (!alive) return;
+  x = Math.max(-125, Math.min(125, x + d * 22));
+  $("car").style.transform = `translateX(${x}px)`;
+  sendState();
+}
+$("left").onpointerdown = e => { e.preventDefault(); move(-1); };
+$("right").onpointerdown = e => { e.preventDefault(); move(1); };
+$("go").onpointerdown = e => { e.preventDefault(); held = true; };
+["pointerup","pointercancel","pointerleave"].forEach(ev =>
+  document.addEventListener(ev, () => held = false)
+);
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") move(-1);
+  if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") move(1);
+  if (e.key === "ArrowUp") held = true;
+});
+document.addEventListener("keyup", () => held = false);
+
+function sendState() {
+  if (!myRef || !alive) return;
+  const now = Date.now();
+  if (now - lastSent < 100) return;
+  lastSent = now;
+  myRef.update({
+    x, score, alive,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
+  }).catch(() => {});
+}
+
+function listenPlayers() {
+  playersRef.on("value", snap => {
+    let opponent = null, count = 0;
+    snap.forEach(child => {
+      count++;
+      if (child.key !== myId) opponent = child.val();
+    });
+    $("players").textContent = count > 1 ? "Both racers connected 💚" : "Waiting for partner…";
+    const el = $("opponent");
+    if (opponent && opponent.alive !== false) {
+      el.style.display = "block";
+      const max = $("game").clientWidth - 48;
+      const px = Math.max(0, Math.min(max, max / 2 + (opponent.x || 0)));
+      el.style.left = px + "px";
+    } else {
+      el.style.display = "none";
+    }
+  });
+}
+
+function spawnEnemy() {
+  if (!alive) return;
+  const el = document.createElement("div");
+  el.className = "enemy";
+  const max = $("game").clientWidth - 48;
+  el.style.left = Math.random() * max + "px";
+  $("game").appendChild(el);
+  enemies.push({el, y:-80});
+  spawnTimer = setTimeout(spawnEnemy, Math.max(500, 1100 - score / 4));
+}
+
+function frame() {
+  if (!alive) return;
+  const gameRect = $("game").getBoundingClientRect();
+  const carRect = $("car").getBoundingClientRect();
+
+  enemies.forEach(e => {
+    e.y += speed + (held ? 2 : 0);
+    e.el.style.top = e.y + "px";
+    const r = e.el.getBoundingClientRect();
+    if (r.bottom > carRect.top + 8 && r.top < carRect.bottom - 8 &&
+        r.right > carRect.left + 5 && r.left < carRect.right - 5) {
+      finishRace();
+    }
+    if (e.y > gameRect.height) {
+      e.el.remove();
+      e.done = true;
+      score += 10;
+      $("score").textContent = score;
+    }
+  });
+  enemies = enemies.filter(e => !e.done);
+  sendState();
+  animationId = requestAnimationFrame(frame);
+}
+
+function startRace() {
+  stopRace();
+  x = 0; score = 0; speed = 3; alive = true;
+  $("score").textContent = "0";
+  $("speed").textContent = "1";
+  $("car").style.transform = "translateX(0px)";
+  enemies = [];
+  for (let i=0; i<4; i++) {
+    const line = document.createElement("div");
+    line.className = "roadline";
+    line.style.top = (i*145-60) + "px";
+    line.style.animationDelay = (-i*.17) + "s";
+    $("game").appendChild(line);
+  }
+  listenPlayers();
+  spawnEnemy();
+  animationId = requestAnimationFrame(frame);
+  speedTimer = setInterval(() => {
+    if (alive) {
+      speed = Math.min(10, speed + .15);
+      $("speed").textContent = Math.floor(speed);
+    }
+  }, 3000);
+}
+
+function stopRace() {
+  alive = false;
+  cancelAnimationFrame(animationId);
+  clearTimeout(spawnTimer);
+  clearInterval(speedTimer);
+  enemies.forEach(e => e.el.remove());
+  enemies = [];
+  $("game").querySelectorAll(".roadline").forEach(e => e.remove());
+}
+
+function finishRace() {
+  if (!alive) return;
+  stopRace();
+  if (myRef) myRef.update({alive:false, score}).catch(()=>{});
+  alert("Race over! Your score: " + score);
+}
+
+$("restart").onclick = () => startRace();
+$("leave").onclick = async () => {
+  stopRace();
+  if (playersRef) playersRef.off();
+  if (myRef) {
+    await myRef.remove().catch(()=>{});
+    myRef = null;
+  }
+  roomCode = "";
+  race.classList.add("hidden");
+  lobby.classList.remove("hidden");
+  $("status").textContent = connected ? "Firebase connected 💚" : "Reconnecting…";
+};
+
+window.addEventListener("beforeunload", () => {
+  if (myRef) myRef.remove();
+});
 </script>
 </body>
 </html>
